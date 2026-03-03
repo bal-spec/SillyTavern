@@ -3230,6 +3230,8 @@ export function baseChatReplace(value, name1Override = null, name2Override = nul
  * @property {string} version Character version
  * @property {string} charDepthPrompt Character depth note
  * @property {string} creatorNotes Character creator notes
+ * @property {string} firstMessage Character first message / greeting
+ * @property {string[]} alternateGreetings Character alternate greetings
  */
 
 /**
@@ -3316,6 +3318,17 @@ export function getCharacterCardFieldsLazy({ chid = undefined } = {}) {
             const exampleDialog = chat_metadata.mes_example || character.mes_example || '';
             return baseChatReplace(exampleDialog.trim());
         },
+        firstMessage: () => {
+            if (!character) return '';
+            const firstMes = character.first_mes?.trim() || '';
+            return baseChatReplace(firstMes);
+        },
+        alternateGreetings: () => {
+            if (!character) return [];
+            const altGreetings = character.data?.alternate_greetings;
+            if (!Array.isArray(altGreetings)) return [];
+            return altGreetings.map(greeting => baseChatReplace(greeting?.trim()));
+        },
     };
 
     return createLazyFields(resolvers);
@@ -3342,6 +3355,8 @@ export function getCharacterCardFields({ chid = undefined } = {}) {
         version: lazy.version,
         charDepthPrompt: lazy.charDepthPrompt,
         creatorNotes: lazy.creatorNotes,
+        firstMessage: lazy.firstMessage,
+        alternateGreetings: lazy.alternateGreetings,
     };
 }
 
@@ -5216,7 +5231,9 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
                 const hasToolCalls = ToolManager.hasToolCalls(streamingProcessor.toolCalls);
                 const shouldDeleteMessage = type !== 'swipe' && ['', '...'].includes(lastMessage?.mes) && !lastMessage?.extra?.reasoning && ['', '...'].includes(streamingProcessor?.result);
                 hasToolCalls && shouldDeleteMessage && await deleteLastMessage();
-                const invocationResult = await ToolManager.invokeFunctionTools(streamingProcessor.toolCalls);
+                const invocationResult = await ToolManager.invokeFunctionTools(streamingProcessor.toolCalls, {
+                    reasoningText: streamingProcessor.reasoningHandler.reasoning,
+                });
                 const shouldStopGeneration = (!invocationResult.invocations.length && shouldDeleteMessage) || invocationResult.stealthCalls.length;
                 if (hasToolCalls) {
                     if (shouldStopGeneration) {
@@ -5341,7 +5358,7 @@ export async function Generate(type, { automatic_trigger, force_name2, quiet_pro
             const hasToolCalls = ToolManager.hasToolCalls(data);
             const shouldDeleteMessage = type !== 'swipe' && ['', '...'].includes(getMessage) && !reasoning;
             hasToolCalls && shouldDeleteMessage && await deleteLastMessage();
-            const invocationResult = await ToolManager.invokeFunctionTools(data);
+            const invocationResult = await ToolManager.invokeFunctionTools(data, { reasoningText: reasoning });
             const shouldStopGeneration = (!invocationResult.invocations.length && shouldDeleteMessage) || invocationResult.stealthCalls.length;
             if (hasToolCalls) {
                 if (shouldStopGeneration) {
